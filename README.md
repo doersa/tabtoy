@@ -2,6 +2,8 @@
 
 游戏客户端,服务器的策划表格数据导出
 
+![tabtoylogo](doc/logo.png)
+
 # 优点
 
 * 编写电子表格, 导出. 只需2步, 即可导出数据!
@@ -18,6 +20,10 @@
 
 * 支持中文枚举值, 中文结构体字段, 编写,更直观
 
+* 支持同类型表拆分, 多人协作填表导出互不影响
+
+* 支持纵向填写字段作为配置, 将电子表格作为快速配置文件
+
 * 全中文导出提示,并支持多语言导出提示
 
 * 支持导出Tag匹配,导出需要的部分, 避免客户端混合服务器私密数据
@@ -26,20 +32,28 @@
 
 * 充分利用CPU多核进行导出, 是已知的现有导出器中速度最快的
 
-* 持续更新, 不断添加新功能, 提高工作效率
-
 # 商用项目
 
-* Fairy in Wonderland
-	https://itunes.apple.com/us/app/fairy-in-wonderland-parkour/id1128656892?l=zh&ls=1&mt=8
-	
 * Mad Magic
 	https://itunes.apple.com/app/id1146098397
 
 * 消诺克
 	http://www.taptap.com/app/15881
 
+* Fairy in Wonderland
+    https://itunes.apple.com/us/app/fairy-in-wonderland-parkour/id1128656892?l=zh&ls=1&mt=8
+
 # 迭代历程
+
+* 2018年8月: 第七代导出器,tabtoy v3 大幅简化表格类型及表头展现方式
+
+    新增: tabtoy内建数据类型也使用v3导出的结构实现自举
+
+    新增: 索引表, 类型表, 数据表。所有表均可实现Sheet，文件之间的合并
+
+    修改: 任意表头只有一行，类型由类型表定义
+
+    修改: 基于Json的二进制格式，消除格式间差异
 
 * 2016年8月: 第六代导出器,tabtoy v2 调整为以电子表格为中心的方式, 支持v1 90%常用功能
 
@@ -68,13 +82,7 @@
 
 53个Excel源文件, 格式xlsm, 大小3.8M
 
-导出速度(硬件环境: i7-4790 8核+SSD)
-
-* 9.4s 第四代导出器
-
-* 4.9s 第五代导出器单线程
-
-* 2.4s 第五代导出器
+导出速度(硬件环境: i7-4790 8核+SSD),  2.4s
 
 # 第六代导出器文档(tabtoy v2)
 
@@ -90,7 +98,7 @@
 
 格式请参考:
 	
-	https://github.com/davyxu/tabtoy/blob/master/exportorv2/sample/Sample.xlsx
+	https://github.com/davyxu/tabtoy/blob/master/v2/example/Sample.xlsx
 	
 	
 ### 准备tabtoy二进制
@@ -109,19 +117,19 @@
 		
 ```bat
 
-tabtoy --mode=exportorv2 --json_out=config.json Table.xlsx
+tabtoy --mode=v2 --json_out=config.json --combinename=Config Table.xlsx
 
 ```
 * 注意: 不要将这个命令行指令对例子表格进行导出, 例子表格包含类型信息, 需要多个表格组合导出
 
 ### Golang读取例子
 
-	[例子](https://github.com/davyxu/tabtoy/tree/master/exportorv2/example/golang)		
+	[例子](https://github.com/davyxu/tabtoy/tree/master/v2/example/golang)
 	
 ```golang
 	config := table.NewConfigTable()
 
-	if err := config.Load("../Config.json"); err != nil {
+	if err := config.Load("Config.json"); err != nil {
 		panic(err)
 	}
 
@@ -134,7 +142,7 @@ tabtoy --mode=exportorv2 --json_out=config.json Table.xlsx
 
 ### C#读取例子
 	
-	[例子](https://github.com/davyxu/tabtoy/tree/master/exportorv2/example/csharp)	
+	[例子](https://github.com/davyxu/tabtoy/tree/master/v2/example/csharp)
 
 ```csharp
     using (var stream = new FileStream("../../../../Config.bin", FileMode.Open))
@@ -172,7 +180,7 @@ tabtoy --mode=exportorv2 --json_out=config.json Table.xlsx
 
 ### lua读取例子
 
-	[例子](https://github.com/davyxu/tabtoy/tree/master/exportorv2/example/lua)	
+	[例子](https://github.com/davyxu/tabtoy/tree/master/v2/example/lua)
 
 ```lua
 -- 添加搜索路径
@@ -193,7 +201,7 @@ print(t.SampleByName["黑猫警长"].ID)
 
 ## 所有例子
 	
-[例子](https://github.com/davyxu/tabtoy/blob/master/exportorv2/example)
+[例子](https://github.com/davyxu/tabtoy/blob/master/v2/example)
 
 * 注意: 例子中展现的是一般项目中多表的使用方法
 
@@ -207,7 +215,24 @@ print(t.SampleByName["黑猫警长"].ID)
 [错误描述](https://github.com/davyxu/tabtoy/blob/master/doc/error_v2.md)
 
 
-## 有意思的功能
+## 功能扩展
+
+### 多表合并导出
+一些表格, 如角色, 道具的表格, 会将角色或道具充当不同的角色和功能, 例如: 道具作为装备
+道具作为宠物,  boss配置, 怪物配置, npc配置等等
+
+tabtoy支持按功能分类后的表格, 导出时保持一致的表头及类型, 方便策划拆表进行多人协作
+
+[例子](https://github.com/davyxu/tabtoy/tree/master/v2/example/combine)
+
+```bat
+
+tabtoy --mode=v2 --json_out=CombineConfig.json --combinename=Config Item.xlsx+Item_Equip.xlsx+Item_Pet.xlsx
+
+```
+
+需要合并的同类表格间使用'+'互相连接
+
 
 ### 导出Tag匹配
 如果客户端使用C#并读取二进制导出数据, 服务器使用golang开发读取json
@@ -224,13 +249,26 @@ print(t.SampleByName["黑猫警长"].ID)
 
 ### 支持纵向导出, 用于配置表
 ![电子表格](doc/vertical_v2.png)
-请参考Vertical.xlsx表
+
+[例子](https://github.com/davyxu/tabtoy/tree/master/v2/example/verticalconfig)
+
+
+# FAQ
+
+## 能够将某些列隐藏不导出?
+
+在列名字前加#即可, 例如: ID 一列不导出, 将第一行的ID列改为#ID即可
+
+同样的, Sheet表单上也支持#,带#开头的表单不会被导出
+
+P.S. 不要将@Types表单加#
+
 
 # 备注
 
 感觉不错请star, 谢谢!
 
-博客: [http://www.cppblog.com/sunicdavy](http://www.cppblog.com/sunicdavy)
+开源讨论群: 527430600
 
 知乎: [http://www.zhihu.com/people/sunicdavy](http://www.zhihu.com/people/sunicdavy)
 
