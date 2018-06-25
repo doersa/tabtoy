@@ -1,4 +1,4 @@
-package v3
+package compiler
 
 import (
 	"github.com/ahmetb/go-linq"
@@ -17,7 +17,7 @@ func init() {
 	}
 }
 
-func LoadTypeTable(typeTab *model.TypeTable, indexGetter FileGetter, fileName string, builtin bool) error {
+func LoadTypeTable(typeTab *model.TypeTable, indexGetter helper.FileGetter, fileName string, builtin bool) error {
 
 	tabs, err := LoadDataTable(indexGetter, fileName, "TableField")
 
@@ -29,17 +29,17 @@ func LoadTypeTable(typeTab *model.TypeTable, indexGetter FileGetter, fileName st
 
 		ResolveHeaderFields(tab, "TableField", &coreSymbols)
 
-		for row := range tab.Rows {
+		for row := 1; row < len(tab.Rows); row++ {
 
 			var objtype table.TableField
 
-			helper.ParseRow(&objtype, tab, row, &coreSymbols)
+			model.ParseRow(&objtype, tab, row, &coreSymbols)
 
 			objtype.IsBuiltin = builtin
 
 			if typeTab.FieldByName(objtype.ObjectType, objtype.FieldName) != nil {
 
-				cell, _ := tab.GetValueByName(row, "字段名")
+				cell := tab.GetValueByName(row, "字段名")
 
 				report.ReportError("DuplicateTypeFieldName", cell.String())
 			}
@@ -58,7 +58,7 @@ func typeTable_CheckEnumValueEmpty(typeTab *model.TypeTable) {
 		return td.Type.Kind == table.TableKind_Enum && td.Type.Value == ""
 	}).ForEachT(func(td *model.TypeData) {
 
-		cell, _ := td.Tab.GetValueByName(td.Row, "值")
+		cell := td.Tab.GetValueByName(td.Row, "值")
 
 		report.ReportError("EnumValueEmpty", cell.String())
 	})
@@ -83,7 +83,7 @@ func typeTable_CheckDuplicateEnumValue(typeTab *model.TypeTable) {
 
 		if _, ok := checker[key]; ok {
 
-			cell, _ := td.Tab.GetValueByName(td.Row, "值")
+			cell := td.Tab.GetValueByName(td.Row, "值")
 
 			report.ReportError("DuplicateEnumValue", cell.String())
 		}

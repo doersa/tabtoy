@@ -19,7 +19,7 @@ type TypeTable struct {
 
 func (self *TypeTable) ToJSON() []byte {
 
-	data, _ := json.MarshalIndent(self.AllFields(), "", "\t")
+	data, _ := json.MarshalIndent(self.AllFields(true), "", "\t")
 
 	return data
 }
@@ -47,10 +47,15 @@ func (self *TypeTable) Raw() []*TypeData {
 	return self.fields
 }
 
-func (self *TypeTable) AllFields() (ret []*table.TableField) {
+func (self *TypeTable) AllFields(all bool) (ret []*table.TableField) {
 
 	linq.From(self.fields).WhereT(func(td *TypeData) bool {
-		return !td.Type.IsBuiltin
+
+		if !all && td.Type.IsBuiltin {
+			return false
+		}
+
+		return true
 	}).SelectT(func(td *TypeData) interface{} {
 
 		return td.Type
@@ -85,12 +90,12 @@ func (self *TypeTable) ResolveEnumValue(objectType, value string) (ret string) {
 
 func (self *TypeTable) EnumNames() (ret []string) {
 
-	return self.rawEnumNames(UseAllBuiltinSymbols)
+	return self.rawEnumNames(BuiltinSymbolsVisible)
 }
 
 func (self *TypeTable) StructNames() (ret []string) {
 
-	return self.rawStructNames(UseAllBuiltinSymbols)
+	return self.rawStructNames(BuiltinSymbolsVisible)
 }
 
 // 获取所有的结构体名
@@ -177,4 +182,4 @@ func NewSymbolTable() *TypeTable {
 	return new(TypeTable)
 }
 
-var UseAllBuiltinSymbols bool
+var BuiltinSymbolsVisible bool

@@ -2,8 +2,7 @@ package tests
 
 import (
 	"encoding/json"
-	"errors"
-	"github.com/davyxu/tabtoy/v3"
+	"github.com/davyxu/tabtoy/v3/compiler"
 	"github.com/davyxu/tabtoy/v3/gen"
 	"github.com/davyxu/tabtoy/v3/gen/gosrc"
 	"github.com/davyxu/tabtoy/v3/gen/jsondata"
@@ -15,81 +14,171 @@ import (
 	"testing"
 )
 
-func newGlobal() *model.Globals {
+type TableEmulator struct {
+	G *model.Globals
+	T *testing.T
+
+	*helper.MemFile
+}
+
+func NewTableEmulator(t *testing.T) *TableEmulator {
+
 	globals := model.NewGlobals()
 	globals.Version = "testver"
-	globals.BuiltinSymbolFile = "../table/BuiltinTypes.xlsx"
 	globals.IndexFile = "Index.xlsx"
 	globals.PackageName = "main"
 	globals.CombineStructName = "Config"
 	globals.Para = false
 
-	return globals
+	memfile := helper.NewMemFile()
+
+	globals.TableGetter = memfile
+	globals.IndexGetter = memfile
+
+	return &TableEmulator{
+		G:       globals,
+		T:       t,
+		MemFile: memfile}
 }
 
-func VerifyError(t *testing.T, indexGetter v3.FileGetter, expectError string) {
-	globals := newGlobal()
+func (self *TableEmulator) MustGotError(expectError string) {
 
-	err := v3.Compile(globals, indexGetter)
+	err := compiler.Compile(self.G)
 
 	if err == nil || err.Error() != expectError {
-		t.FailNow()
+		self.T.Logf("Expect '%s' got '%s'", expectError, err.Error())
+		self.T.FailNow()
 	}
 }
 
-func VerifyType(indexGetter v3.FileGetter, expectJson string) error {
+func (self *TableEmulator) VerifyType(expectJson string) {
 
-	globals := newGlobal()
+	var err error
 
-	err := v3.Compile(globals, indexGetter)
+	defer func() {
+		if err != nil {
+			self.T.Error(err)
+			self.T.FailNow()
+		}
+
+	}()
+
+	err = compiler.Compile(self.G)
 
 	if err != nil {
-		return err
+		return
 	}
 
-	appJson := globals.Types.ToJSON()
+	appJson := self.G.Types.ToJSON()
+
+	println(string(appJson))
 
 	if expectJson == "" {
-		return nil
+		return
 	}
 
-	return compareJson(appJson, []byte(expectJson))
+	var result bool
+	result, err = compareJson(appJson, []byte(expectJson))
+	if err != nil {
+		return
+	}
+
+	if !result {
+		self.T.Logf("Expect '%s' got '%s'", expectJson, appJson)
+		self.T.FailNow()
+	}
 }
 
-func VerifyLauncherJson(indexGetter v3.FileGetter, expectJson string) error {
+func (self *TableEmulator) VerifyData(expectJson string) {
 
-	globals := newGlobal()
+	var err error
 
-	err := v3.Compile(globals, indexGetter)
+	defer func() {
+		if err != nil {
+			self.T.Error(err)
+			self.T.FailNow()
+		}
+
+	}()
+
+	err = compiler.Compile(self.G)
 
 	if err != nil {
-		return err
+		return
 	}
 
-	dir, err := ioutil.TempDir("", "tabtoytest_")
+	var appJson []byte
+	appJson, err = jsondata.Generate(self.G)
 
 	if err != nil {
-		return err
+		return
+	}
+
+	var result bool
+	result, err = compareJson(appJson, []byte(expectJson))
+	if err != nil {
+		return
+	}
+
+	if !result {
+		self.T.Logf("Expect '%s' got '%s'", appJson, expectJson)
+		self.T.FailNow()
+	}
+}
+
+func (self *TableEmulator) VerifyGoTypeAndJson(expectJson string) {
+
+	var err error
+
+	defer func() {
+		if err != nil {
+			self.T.Error(err)
+			self.T.FailNow()
+		}
+
+	}()
+
+	err = compiler.Compile(self.G)
+
+	if err != nil {
+		return
+	}
+
+	var dir string
+	dir, err = ioutil.TempDir("", "tabtoytest_")
+
+	if err != nil {
+		return
 	}
 
 	configFileName := filepath.Join(dir, "config.json")
 
-	if err := genFile(globals, configFileName, jsondata.Generate); err != nil {
-		return err
+	if err = genFile(self.G, configFileName, jsondata.Generate); err != nil {
+		return
 	}
 
 	tableFileName := filepath.Join(dir, "table.go")
 
-	if err := genFile(globals, tableFileName, gosrc.Generate); err != nil {
-		return err
+	if err = genFile(self.G, tableFileName, gosrc.Generate); err != nil {
+		return
 	}
 
-	appJson, err := compileLauncher(filepath.Join(dir, "launcher.go"), configFileName, tableFileName)
+	var appJson []byte
+	appJson, err = compileLauncher(filepath.Join(dir, "launcher.go"), configFileName, tableFileName)
 	if err != nil {
-		return err
+		return
 	}
 
-	return compareJson(appJson, []byte(expectJson))
+	var result bool
+	result, err = compareJson(appJson, []byte(expectJson))
+	if err != nil {
+		return
+	}
+
+	if !result {
+		self.T.Logf("Expect '%s' got '%s'", appJson, expectJson)
+		self.T.FailNow()
+	}
 }
 
 func genFile(globals *model.Globals, filename string, genFunc gen.GenFunc) error {
@@ -103,23 +192,23 @@ func genFile(globals *model.Globals, filename string, genFunc gen.GenFunc) error
 	return helper.WriteFile(filename, data)
 }
 
-func compareJson(a, b []byte) error {
+func compareJson(a, b []byte) (bool, error) {
 
 	var mapA, mapB map[string]interface{}
 
 	err := json.Unmarshal(a, &mapA)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	err = json.Unmarshal(b, &mapB)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if !reflect.DeepEqual(mapA, mapB) {
-		return errors.New("json no match")
+		return false, nil
 	}
 
-	return nil
+	return true, nil
 }
